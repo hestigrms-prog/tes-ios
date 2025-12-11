@@ -1,0 +1,53 @@
+name: absensi_app
+description: "Aplikasi untuk absensi masuk dan pulang."
+
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  provider: ^6.1.2
+  http: ^1.2.1
+  shared_preferences: ^2.2.3
+  webview_flutter: ^4.4.1
+  webview_flutter_android: ^4.10.2
+  webview_flutter_wkwebview: ^3.10.1
+
+  camera: ^0.11.0
+  camera_android_camerax: ^0.6.21
+  geolocator: ^14.0.2
+  geocoding: ^4.0.0
+  permission_handler: ^12.0.1
+  flutter_map: ^8.2.1
+  latlong2: ^0.9.0
+  flutter_image_compress: ^2.1.0
+  path_provider: ^2.1.3
+  path: ^1.9.0
+
+  flutter_lints: ^6.0.0
+  flutter_svg: ^2.1.1
+  flutter_inappwebview: ^6.1.5
+
+  flutter_background_service: ^5.1.0
+  flutter_local_notifications: ^17.2.3
+
+  firebase_core: ^4.1.0
+  firebase_crashlytics: ^5.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icon/logo.png
+    - assets/images/working.svg
+    - assets/icon/user_default.png
