@@ -1,0 +1,47 @@
+name: Flutter iOS Build & Upload
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Install CocoaPods
+        run: sudo gem install cocoapods
+
+      - name: Build IPA
+        run: flutter build ipa --release
+
+      - name: Setup Ruby & Fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+      - run: gem install fastlane -NV
+
+      - name: Upload to App Store Connect
+        env:
+          APP_IDENTIFIER: ${{ secrets.APPSTORE_APP_ID }}
+          APPLE_ID: ${{ secrets.APPSTORE_APPLE_ID }}
+          ASC_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+        run: |
+          fastlane deliver \
+            --ipa "./build/ios/ipa/*.ipa" \
+            --api_key_path <(echo "{\"key_id\": \"$ASC_KEY_ID\", \"issuer_id\": \"$ASC_ISSUER_ID\", \"key\": \"$ASC_PRIVATE_KEY\"}") \
+            --skip_screenshots \
+            --skip_metadata
