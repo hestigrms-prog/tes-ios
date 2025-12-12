@@ -25,6 +25,10 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
+      - name: Ensure minimum iOS version
+        run: |
+          echo "platform :ios, '15.0'" > ios/Podfile
+
       - name: Install CocoaPods
         run: sudo gem install cocoapods
 
