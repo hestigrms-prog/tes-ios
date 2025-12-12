@@ -10,24 +10,41 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      # 1️⃣ Checkout source code
+      # Checkout source code
       - uses: actions/checkout@v4
 
-      # 2️⃣ Install Flutter stable
+      # Cache Flutter Pub dependencies
+      - name: Cache Flutter Pub
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.pub-cache
+          key: ${{ runner.os }}-flutter-${{ hashFiles('pubspec.yaml') }}
+
+      # Cache CocoaPods
+      - name: Cache CocoaPods
+        uses: actions/cache@v3
+        with:
+          path: ios/Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+
+      # Install Flutter stable
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           architecture: arm64
 
-      # 3️⃣ Confirm Flutter version
+      # Confirm Flutter version
       - run: flutter --version
 
-      # 4️⃣ Get Flutter dependencies
+      # Get Flutter dependencies
       - name: Flutter pub get
         run: flutter pub get
 
-      # 5️⃣ Ensure Podfile exists & iOS minimum target = 15
+      # Ensure Podfile exists & iOS minimum target = 15
       - name: Ensure Podfile & iOS 15
         run: |
           cd ios
@@ -36,29 +53,32 @@ jobs:
           fi
           sed -i '' "s/platform :ios, '.*'/platform :ios, '15.0'/" Podfile || echo "platform :ios, '15.0'" >> Podfile
 
-      # 6️⃣ Install CocoaPods
+      # Install CocoaPods
       - name: Install CocoaPods
         run: sudo gem install cocoapods
 
-      # 7️⃣ Run pod install
+      # Run pod install
       - name: Pod install
         run: |
           cd ios
-          pod repo update
-          pod install
+          pod install --silent
 
-      # 8️⃣ Build IPA without codesigning
+      # Build IPA without codesigning
       - name: Build IPA
-        run: flutter build ipa --release --no-codesign
+        run: flutter build ipa --release --no-codesign --output-dir=build/ios/ipa
 
-      # 9️⃣ Setup Ruby & Fastlane
+      # Check File IPA
+      - name: Check File IPA
+        - run: ls -R build/ios
+
+      # Setup Ruby & Fastlane
       - name: Setup Ruby & Fastlane
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
       - run: gem install fastlane -NV
 
-      # 🔟 Upload IPA to App Store Connect
+      # Upload IPA to App Store Connect
       - name: Upload to App Store Connect
         env:
           APP_IDENTIFIER: ${{ secrets.APPSTORE_APP_ID }}
@@ -67,8 +87,11 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
         run: |
+          IPA_PATH=$(find build/ios/ -name "*.ipa" | head -n 1)
+          echo "IPA path found: $IPA_PATH"
           fastlane deliver \
-            --ipa "./build/ios/ipa/*.ipa" \
+            --ipa "$IPA_PATH" \
             --api_key_path <(echo "{\"key_id\": \"$ASC_KEY_ID\", \"issuer_id\": \"$ASC_ISSUER_ID\", \"key\": \"$ASC_PRIVATE_KEY\"}") \
             --skip_screenshots \
             --skip_metadata
+
