@@ -46,6 +46,8 @@ dev_dependencies:
     sdk: flutter
 
 flutter:
+  ios:
+    minimum_os_version: 15.0
   uses-material-design: true
   assets:
     - assets/icon/logo.png
