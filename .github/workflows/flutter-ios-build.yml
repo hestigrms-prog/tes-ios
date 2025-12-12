@@ -12,10 +12,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # FIX: Install Flutter dengan parameter yang benar
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 'stable'
+          channel: stable
+          architecture: arm64
+
+      - name: Check Flutter version
+        run: flutter --version
 
       - name: Flutter pub get
         run: flutter pub get
@@ -24,12 +29,13 @@ jobs:
         run: sudo gem install cocoapods
 
       - name: Build IPA
-        run: flutter build ipa --release
+        run: flutter build ipa --release --no-codesign
 
       - name: Setup Ruby & Fastlane
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
+
       - run: gem install fastlane -NV
 
       - name: Upload to App Store Connect
