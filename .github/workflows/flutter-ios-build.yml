@@ -69,7 +69,7 @@ jobs:
 
       # Check File IPA
       - name: Check File IPA
-        - run: ls -R build/ios
+        run: ls -R build/ios
 
       # Setup Ruby & Fastlane
       - name: Setup Ruby & Fastlane
