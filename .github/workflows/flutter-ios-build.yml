@@ -10,45 +10,62 @@ jobs:
     runs-on: macos-latest
 
     steps:
+      # 1️⃣ Checkout source code
       - uses: actions/checkout@v4
 
-      # FIX: Install Flutter dengan parameter yang benar
+      # 2️⃣ Install Flutter stable
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           architecture: arm64
 
-      - name: Check Flutter version
-        run: flutter --version
+      # 3️⃣ Confirm Flutter version
+      - run: flutter --version
 
+      # 4️⃣ Get Flutter dependencies
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Ensure minimum iOS version
+      # 5️⃣ Ensure Podfile exists & iOS minimum target = 15
+      - name: Ensure Podfile & iOS 15
         run: |
-          echo "platform :ios, '15.0'" > ios/Podfile
+          cd ios
+          if [ ! -f Podfile ]; then
+            pod init
+          fi
+          sed -i '' "s/platform :ios, '.*'/platform :ios, '15.0'/" Podfile || echo "platform :ios, '15.0'" >> Podfile
 
+      # 6️⃣ Install CocoaPods
       - name: Install CocoaPods
         run: sudo gem install cocoapods
 
+      # 7️⃣ Run pod install
+      - name: Pod install
+        run: |
+          cd ios
+          pod repo update
+          pod install
+
+      # 8️⃣ Build IPA without codesigning
       - name: Build IPA
         run: flutter build ipa --release --no-codesign
 
+      # 9️⃣ Setup Ruby & Fastlane
       - name: Setup Ruby & Fastlane
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
-
       - run: gem install fastlane -NV
 
+      # 🔟 Upload IPA to App Store Connect
       - name: Upload to App Store Connect
         env:
           APP_IDENTIFIER: ${{ secrets.APPSTORE_APP_ID }}
           APPLE_ID: ${{ secrets.APPSTORE_APPLE_ID }}
           ASC_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
-          ASC_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
         run: |
           fastlane deliver \
             --ipa "./build/ios/ipa/*.ipa" \
