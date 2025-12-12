@@ -65,7 +65,7 @@ jobs:
 
       # Build IPA without codesigning
       - name: Build IPA
-        run: flutter build ipa --release --no-codesign --output-dir=build/ios/ipa
+        run: flutter build ipa --release --no-codesign
 
       # Check File IPA
       - name: Check File IPA
