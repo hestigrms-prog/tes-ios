@@ -1,4 +1,4 @@
-name: Flutter iOS Build & Upload
+name: Flutter iOS Build & Upload TestFlight
 
 on:
   push:
@@ -10,100 +10,83 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      # Checkout source code
+      # 1️⃣ Checkout source
       - uses: actions/checkout@v4
 
-      # Cache Flutter Pub dependencies
-      - name: Cache Flutter Pub
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.pub-cache
-          key: ${{ runner.os }}-flutter-${{ hashFiles('pubspec.yaml') }}
-
-      # Cache CocoaPods
-      - name: Cache CocoaPods
-        uses: actions/cache@v3
-        with:
-          path: ios/Pods
-          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pods-
-
-      # Install Flutter stable
-      - name: Install Flutter
+      # 2️⃣ Install Flutter
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           architecture: arm64
 
-      # Confirm Flutter version
       - run: flutter --version
 
-      # Get Flutter dependencies
+      # 3️⃣ Install dependencies
       - name: Flutter pub get
         run: flutter pub get
 
-      # Ensure Podfile exists & iOS minimum target = 15
-      - name: Ensure Podfile & iOS 15
-        run: |
-          cd ios
-          if [ ! -f Podfile ]; then
-            pod init
-          fi
-          sed -i '' "s/platform :ios, '.*'/platform :ios, '15.0'/" Podfile || echo "platform :ios, '15.0'" >> Podfile
-
-      # Install CocoaPods
+      # 4️⃣ Install CocoaPods
       - name: Install CocoaPods
         run: sudo gem install cocoapods
 
-      # Run pod install
-      - name: Pod install
+      - name: Pod Install
         run: |
           cd ios
-          pod install --silent
+          pod install
 
-      # Build IPA without codesigning
-      - name: Build IPA
-        run: flutter build ipa --release --no-codesign
-
-      # Check File IPA
-      - name: Check File IPA
-        run: ls -R build/ios
-
-      # Setup Ruby & Fastlane
-      - name: Setup Ruby & Fastlane
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.2'
-      - run: gem install fastlane -NV
-
-      # Upload IPA to App Store Connect
-      - name: Upload to App Store Connect
+      # 5️⃣ Setup Codesigning
+      - name: Setup iOS Codesign
         env:
-          APP_IDENTIFIER: ${{ secrets.APPSTORE_APP_ID }}
-          APPLE_ID: ${{ secrets.APPSTORE_APPLE_ID }}
+          IOS_P12_BASE64: ${{ secrets.IOS_P12_BASE64 }}
+          IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+          IOS_PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
+        run: |
+          echo "$IOS_P12_BASE64" | base64 --decode > cert.p12
+          echo "$IOS_PROFILE_BASE64" | base64 --decode > profile.mobileprovision
+
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import cert.p12 -k build.keychain -P "$IOS_P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      # 6️⃣ Build & Archive (NO auto-signing)
+      - name: Build & Archive iOS
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_CERTIFICATE_NAME: ${{ secrets.APPLE_CERTIFICATE_NAME }}
+        run: |
+          flutter build ios --release --no-codesign
+          cd ios
+          xcodebuild \
+            -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -archivePath build/Runner.xcarchive \
+            archive \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_IDENTITY="$APPLE_CERTIFICATE_NAME"
+
+      # 7️⃣ Export IPA
+      - name: Export IPA
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath ios/build/Runner.xcarchive \
+            -exportOptionsPlist ios/ExportOptions.plist \
+            -exportPath ios/build
+
+      # 8️⃣ Upload to TestFlight
+      - name: Upload to TestFlight
+        env:
           ASC_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
-          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          ASC_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
         run: |
-          # Cari file IPA
-          IPA_PATH=$(find build/ios/ -name "*.ipa" | head -n 1)
-
-          # Cek apakah file IPA ditemukan
-          if [ -z "$IPA_PATH" ]; then
-            echo "IPA file not found! Please check the Flutter build step."
-            ls -R build/ios
-            exit 1
-          fi
-
-          echo "IPA path found: $IPA_PATH"
-
-          # Jalankan Fastlane
-          fastlane deliver \
-            --ipa "$IPA_PATH" \
-            --api_key_path <(echo "{\"key_id\": \"$ASC_KEY_ID\", \"issuer_id\": \"$ASC_ISSUER_ID\", \"key\": \"$ASC_PRIVATE_KEY\"}") \
-            --skip_screenshots \
-            --skip_metadata
-
-
+          sudo gem install fastlane -NV
+          fastlane pilot upload \
+            --ipa ios/build/*.ipa \
+            --api_key_path <(echo "{\"key_id\":\"$ASC_KEY_ID\",\"issuer_id\":\"$ASC_ISSUER_ID\",\"key\":\"$ASC_PRIVATE_KEY\"}")
